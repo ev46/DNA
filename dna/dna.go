@@ -9,4 +9,5 @@ import (
 func main() {
 	fmt.Println("\n Starting the DNA scanner...(gennady1, ev46)")
 	scanner.Scan()
+	fmt.Println("--Done--")
 }
