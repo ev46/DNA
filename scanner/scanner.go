@@ -27,10 +27,23 @@ func Scan() {
 	// bytes := Make_Simple_Packet()
 	// Decode_Data_Packet(bytes)
 
+	Initialize_Redis_Client()
+
 	// Read_PCAP_Packets_FromFile()
 	Read_RAW_Socket_Data()
 
 	fmt.Println("\ndone...")
+}
+
+func Initialize_Redis_Client() {
+	//connect to redis server
+	client, err := redis.Dial("tcp", "localhost:6379")
+	if err != nil {
+		fmt.Println("Problem connecting to Redis Server")
+		log.Fatal(err)
+	}
+	// defer close
+	defer client.Close()
 }
 
 //----- PCAP read from
@@ -100,28 +113,28 @@ func process_gopacket(packet gopacket.Packet) {
 func register_network_call_with_redis(protocolType layers.IPProtocol, src_ip net.IP, dst_ip net.IP) {
 	fmt.Printf("\tIPv4 | %s | Src: %s Dest: %s \n", protocolType, src_ip, dst_ip)
 
-	client, err := redis.Dial("tcp", "localhost:6379")
-	if err != nil {
-		//handle
-	}
-	// defer close
-	defer client.Close()
+	// client, err := redis.Dial("tcp", "localhost:6379")
+	// if err != nil {
+	// 	//handle
+	// }
+	// // defer close
+	// defer client.Close()
 
-	err = client.Cmd("SET", src_ip, dst_ip).Err
-	if err != nil {
-		fmt.Println(err)
-	}
+	// err = client.Cmd("SET", src_ip, dst_ip).Err
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
 
-	foo, err := client.Cmd("GET", src_ip).Str()
-	if err != nil {
-		fmt.Println(err.Error())
-	} else {
-		fmt.Println(foo)
-	}
+	// foo, err := client.Cmd("GET", src_ip).Str()
+	// if err != nil {
+	// 	fmt.Println(err.Error())
+	// } else {
+	// 	fmt.Println(foo)
+	// }
 }
 
 //---------- Test packets
-func Make_Simple_Packet() []byte {
+func Make_Simple_Test_Packet() []byte {
 	bytes := []byte{
 		0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, // magic, maj, min
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // tz, sigfigs
