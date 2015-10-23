@@ -13,17 +13,17 @@ import (
 )
 
 var (
-	client       redis.Client
-	snapshot_len int32 = 1024
-	promiscuous  bool  = false
-	err          error
-	timeout      time.Duration = 30 * time.Second
-	handle       *pcap.Handle
+	redisConnectionInitialized bool = false
+	client                     redis.Client
+	snapshot_len               int32 = 1024
+	promiscuous                bool  = false
+	err                        error
+	timeout                    time.Duration = 30 * time.Second
+	handle                     *pcap.Handle
 )
 
 //"wireless network device name on mac: "en1",  "eth0" for physical connection
 func Scan(networkDeviceName string, redisServerURL string, redisProtocol string) {
-	fmt.Println("\n---- Scanner ----")
 
 	// bytes := Make_Simple_Packet()
 	// Decode_Data_Packet(bytes)
@@ -38,10 +38,17 @@ func Scan(networkDeviceName string, redisServerURL string, redisProtocol string)
 
 func Initialize_Redis_Client(redisServerURL string, redisProtocol string) {
 	//connect to redis server
+	fmt.Println("|-------------------------------------------------------|")
+	fmt.Println("|  [scanner] Initializing Redis Client Configuration    |")
+	fmt.Println("|		Redis IP:Port: " + redisServerURL + "\t\t|")
+	fmt.Println("|		Redis Protocol: " + redisProtocol + "\t\t\t|")
+
 	client, err := redis.Dial(redisProtocol, redisServerURL)
 	if err != nil {
 		fmt.Println("Problem connecting to Redis Server")
 		log.Fatal(err)
+	} else {
+		redisConnectionInitialized = true
 	}
 	// defer close
 	defer client.Close()
@@ -49,7 +56,10 @@ func Initialize_Redis_Client(redisServerURL string, redisProtocol string) {
 
 //----- PCAP read from
 func Read_RAW_Socket_Data(networkDeviceName string) {
-	fmt.Println("\tStarting live network traffic monitor (promiscuous mode)\n")
+	fmt.Println("|-------------------------------------------------------|")
+	fmt.Println("|  [scanner] Capture network traffic (promiscuous mode) |")
+	fmt.Println("|  Monitoring traffic on device: " + networkDeviceName)
+
 	// Open device
 	handle, err = pcap.OpenLive(networkDeviceName, snapshot_len, promiscuous, timeout)
 	if err != nil {
@@ -112,7 +122,6 @@ func process_gopacket(packet gopacket.Packet) {
 
 //Call redis from here (running redis on local host right now)
 func register_network_call_with_redis(protocolType layers.IPProtocol, src_ip net.IP, dst_ip net.IP) {
-	fmt.Printf("\tIPv4 | %s | Src: %s Dest: %s \n", protocolType, src_ip, dst_ip)
 
 	// client, err := redis.Dial("tcp", "localhost:6379")
 	// if err != nil {
@@ -121,17 +130,23 @@ func register_network_call_with_redis(protocolType layers.IPProtocol, src_ip net
 	// // defer close
 	// defer client.Close()
 
-	err = client.Cmd("SET", src_ip, dst_ip).Err
-	if err != nil {
-		fmt.Println(err)
+	//just print to screen
+	if redisConnectionInitialized == true {
+		err = client.Cmd("SET", src_ip, dst_ip).Err
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		foo, err := client.Cmd("GET", src_ip).Str()
+		if err != nil {
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println(foo)
+		}
+	} else { //just print to screen
+		fmt.Printf("\n|\tprotocol %s | Src: %s Dest: %s", protocolType, src_ip, dst_ip)
 	}
 
-	foo, err := client.Cmd("GET", src_ip).Str()
-	if err != nil {
-		fmt.Println(err.Error())
-	} else {
-		fmt.Println(foo)
-	}
 }
 
 //---------- Test packets
