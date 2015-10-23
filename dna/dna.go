@@ -17,10 +17,10 @@ type Configuration struct {
 
 func main() {
 
-	fmt.Println("\n---------------------------------------------------------")
-	fmt.Println("|     Distributed Network Analysis (DNA) project        |")
-	fmt.Println("|     Team-6:    Edward Verenich, Gennady Staskevich    |")
-	fmt.Println("|-------------------------------------------------------|")
+	fmt.Println("\n-----------------------------------------------------------------")
+	fmt.Println("|     Distributed Network Analysis (DNA) project                |")
+	fmt.Println("|     Team-6:    Edward Verenich, Gennady Staskevich            |")
+	fmt.Println("|---------------------------------------------------------------|")
 
 	//read config file
 	conf := read_config_file()
@@ -31,8 +31,8 @@ func main() {
 }
 
 func read_config_file() Configuration {
-	fmt.Println("|-------------------------------------------------------|")
-	fmt.Println("|  [dna] Reading configuration file:  conf.jason        |")
+	fmt.Println("|---------------------------------------------------------------|")
+	fmt.Println("|  [dna] Reading configuration file:  conf.jason                |")
 	file, _ := os.Open("conf.json")
 	decoder := json.NewDecoder(file)
 	configuration := Configuration{}

@@ -1,6 +1,6 @@
 {
-    "NetworkDeviceName": "en0",
-    "RadisServerIP": "10.10.10.1",
+    "NetworkDeviceName": "utun0",
+    "RadisServerIP": "localhost",
 	"RadisServerPort": "6379",
 	"RadisServerProtocol": "tcp"
 }
