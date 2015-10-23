@@ -4,22 +4,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/DNA/scanner"
 )
 
 type Configuration struct {
-	NetworkDeviceName string
-	RadisServerIP     string
+	NetworkDeviceName   string
+	RadisServerIP       string
+	RadisServerPort     string
+	RadisServerProtocol string
 }
 
 func main() {
-	read_config_file()
 
-	// fmt.Println("\n Starting the DNA scanner...(gennady1, ev46)")
-	// scanner.Scan()
-	// fmt.Println("--Done--")
+	fmt.Println("\n-------------------------------------------------------")
+	fmt.Println("|     Distributed Network Analysis (DNA) project      |")
+	fmt.Println("|     Team-6:    Edward Verenich, Gennady Staskevich  |")
+	fmt.Println("\n-------------------------------------------------------")
+
+	//read config file
+	conf := read_config_file()
+	redisURL := conf.RadisServerIP + ":" + conf.RadisServerPort
+
+	scanner.Scan(conf.NetworkDeviceName, redisURL, conf.RadisServerProtocol)
+	fmt.Println("--Done--")
 }
 
-func read_config_file() {
+func read_config_file() Configuration {
 	fmt.Println("\n Reading configuration file (conf.jason) ")
 	file, _ := os.Open("conf.json")
 	decoder := json.NewDecoder(file)
@@ -28,7 +39,12 @@ func read_config_file() {
 	if err != nil {
 		fmt.Println("Error opening configuration file:", err)
 	}
+
+	//pring configuration
 	fmt.Println("\tNetworkDeviceName:\t" + configuration.NetworkDeviceName)
-	fmt.Println("\tRadis Server IP:\t" + configuration.RadisServerIP)
-	// fmt.Println("Protocol: " + configuration.Protocol)
+	fmt.Println("\tRedis server IP:\t" + configuration.RadisServerIP)
+	fmt.Println("\tRedis server port:\t" + configuration.RadisServerPort)
+	fmt.Println("\tRedis server protocol:\t" + configuration.RadisServerProtocol)
+
+	return configuration
 }
