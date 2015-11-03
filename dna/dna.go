@@ -41,11 +41,17 @@ func read_config_file() Configuration {
 		fmt.Println("Error opening configuration file:", err)
 	}
 
-	// //pring configuration
-	// fmt.Println("|\tNetworkDeviceName:\t" + configuration.NetworkDeviceName)
-	// fmt.Println("|\tRedis server IP:\t" + configuration.RadisServerIP)
-	// fmt.Println("|\tRedis server port:\t" + configuration.RadisServerPort)
-	// fmt.Println("|\tRedis server protocol:\t" + configuration.RadisServerProtocol)
+	//
+	//print_configuration(configuration)
 
 	return configuration
+}
+
+func print_configuration(config Configuration) {
+	fmt.Println("|---------------------------------------------------------------|")
+	fmt.Println("|  [dna] Printing Configuration file:  conf.jason                |")
+	fmt.Println("|\tNetworkDeviceName:\t" + config.NetworkDeviceName)
+	fmt.Println("|\tRedis server IP:\t" + config.RadisServerIP)
+	fmt.Println("|\tRedis server port:\t" + config.RadisServerPort)
+	fmt.Println("|\tRedis server protocol:\t" + config.RadisServerProtocol)
 }
