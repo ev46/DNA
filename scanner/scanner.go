@@ -14,9 +14,15 @@ import (
 
 var (
 	local_ip_list []net.IP
+	//local setting from config file
+	networkDeviceName string
+
 	//Redis specific
+	//client                     redis.Client
+	redisServerURL             string
+	redisProtocol              string
 	redisConnectionInitialized bool = false
-	client                     redis.Client
+
 	//snifing localhost specific
 	snapshot_len int32 = 1024
 	promiscuous  bool  = false
@@ -31,42 +37,21 @@ var (
 )
 
 //"wireless network device name on mac: "en1",  "eth0" for physical connection
-func Scan(networkDeviceName string, redisServerURL string, redisProtocol string) {
+func Scan(network_Device_Name string, redis_Server_URL string, redis_Protocol string) {
+
+	networkDeviceName = network_Device_Name
+	redisServerURL = redis_Server_URL
+	redisProtocol = redis_Protocol
 
 	initialize_local_ip_list()
 
-	Initialize_Redis_Client(redisServerURL, redisProtocol)
-
-	// Read_PCAP_Packets_FromFile()
-	Read_RAW_Socket_Data(networkDeviceName)
+	Read_RAW_Socket_Data()
 
 	fmt.Println("\ndone...")
 }
 
-func Initialize_Redis_Client(redisServerURL string, redisProtocol string) {
-	//connect to redis server
-	fmt.Println("|---------------------------------------------------------------|")
-	fmt.Println("|  [scanner] Initializing Redis Client Configuration    --------|")
-	fmt.Println("|	  Connecting to Redis Server: " + redisServerURL + "|" + redisProtocol + "\t|")
-
-	client, err := redis.Dial(redisProtocol, redisServerURL)
-	if err != nil {
-		fmt.Println("| WARNING: Problem connecting to Redis Server: " + redisServerURL + "\t|")
-		fmt.Println("|      " + err.Error() + "\t|")
-		fmt.Println("|  \tPACKET_LOGGING_MODE: PRINT_TO_SCREEN\t\t\t|")
-		fmt.Println("|---------------------------------------------------------------|")
-	} else {
-		fmt.Println("|  \tPACKET_LOGGING_MODE: SEND_TO_REDIS  \t\t\t|")
-		fmt.Println("|---------------------------------------------------------------|")
-		redisConnectionInitialized = true
-
-		// defer close
-		defer client.Close()
-	}
-}
-
 //----- PCAP read from
-func Read_RAW_Socket_Data(networkDeviceName string) {
+func Read_RAW_Socket_Data() {
 	fmt.Println("|---------------------------------------------------------------|")
 	fmt.Println("|  [scanner] Opening Device (PROMISCUOUS_MODE): " + networkDeviceName + "\t\t|")
 
@@ -102,7 +87,6 @@ func process_gopacket(packet gopacket.Packet) {
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
 	if ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
-		fmt.Printf("\tIPv4:%s\tDest: %s \n", ip.Protocol, ip.DstIP)
 
 		// IP layer variables:
 		// Version (Either 4 or 6)
@@ -135,26 +119,18 @@ func process_gopacket(packet gopacket.Packet) {
 //Call redis from here (running redis on local host right now)
 func register_network_call_with_redis(protocolType layers.IPProtocol, dst_ip net.IP) {
 
-	for i := 0; i < len(local_ip_list); i++ {
-		if local_ip_list[i].Equal(dst_ip) {
-			fmt.Println("\n\t---Detected Local IP:", dst_ip)
-		} else {
-			if redisConnectionInitialized == true {
-				err = client.Cmd("SET", src_ip, dst_ip).Err
-				if err != nil {
-					fmt.Println(err)
-				}
+	client, err := redis.Dial(redisProtocol, redisServerURL)
+	if err != nil {
+		fmt.Println("| WARNING: Problem connecting to Redis Server: " + redisServerURL + "\t|")
+		fmt.Println("|      " + err.Error())
+	}
+	defer client.Close()
 
-				// foo, err := client.Cmd("GET", src_ip).Str()
-				// if err != nil {
-				// 	fmt.Println(err.Error())
-				// } else {
-				// 	fmt.Println(foo)
-				// }
-			} else { //just print to screen
-				fmt.Printf("\n\tDst: %s\t Type: %s", dst_ip, protocolType.LayerType().String())
-			}
-		}
+	foo := client.Cmd("ZINCRBY", "popularity", "1", dst_ip.String())
+	if foo.Err != nil {
+		fmt.Println(foo.Err.Error())
+	} else {
+		fmt.Printf("\tIPv4:%s\tDest: %s \n", protocolType, dst_ip)
 	}
 }
 
@@ -191,41 +167,90 @@ func initialize_local_ip_list() {
 	}
 }
 
-// //---------- Test packets
-// func Make_Simple_Test_Packet() []byte {
-// 	bytes := []byte{
-// 		0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, // magic, maj, min
-// 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // tz, sigfigs
-// 		0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, // snaplen, linkType
-// 		0x5A, 0xCC, 0x1A, 0x54, 0x01, 0x00, 0x00, 0x00, // sec, usec
-// 		0x04, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, // cap len, full len
-// 		0x01, 0x02, 0x03, 0x04, // data
-// 	}
-// 	return bytes
-// }
+/** CODE IN PROGRESS
 
-// //---------- fast packet decoder
-// func process_gopacket_fast_decoder(packet gopacket.Packet) {
-// 	parser := gopacket.NewDecodingLayerParser(
-// 		layers.LayerTypeEthernet,
-// 		&ethLayer,
-// 		&ipLayer,
-// 		&tcpLayer,
-// 	)
-// 	foundLayerTypes := []gopacket.LayerType{}
+//------------- Connection Pool for redis
+func Initialize_Redis_Client() {
+	//connect to redis server
+	fmt.Println("|---------------------------------------------------------------|")
+	fmt.Println("|  [scanner] Initializing Redis Client Configuration    --------|")
+	fmt.Println("|	  Connecting to Redis Server: " + redisServerURL + "|" + redisProtocol + "\t|")
 
-// 	err := parser.DecodeLayers(packet.Data(), &foundLayerTypes)
-// 	if err != nil {
-// 		fmt.Println("Trouble decoding layers: ", err)
-// 	}
+	client, err := redis.Dial(redisProtocol, redisServerURL)
+	if err != nil {
+		fmt.Println("| WARNING: Problem connecting to Redis Server: " + redisServerURL + "\t|")
+		fmt.Println("|      " + err.Error() + "\t|")
+		fmt.Println("|  \tPACKET_LOGGING_MODE: PRINT_TO_SCREEN\t\t\t|")
+		fmt.Println("|---------------------------------------------------------------|")
+	} else {
+		fmt.Println("|  \tPACKET_LOGGING_MODE: SEND_TO_REDIS  \t\t\t|")
+		fmt.Println("|---------------------------------------------------------------|")
+		redisConnectionInitialized = true
 
-// 	for _, layerType := range foundLayerTypes {
-// 		if layerType == layers.LayerTypeIPv4 {
-// 			fmt.Println("IPv4: ", ipLayer.SrcIP, "->", ipLayer.DstIP)
-// 		}
-// 		if layerType == layers.LayerTypeTCP {
-// 			fmt.Println("TCP Port: ", tcpLayer.SrcPort, "->", tcpLayer.DstPort)
-// 			fmt.Println("TCP SYN:", tcpLayer.SYN, " | ACK:", tcpLayer.ACK)
-// 		}
-// 	}
-// }
+		// defer close
+		defer client.Close()
+	}
+}
+
+//---------- Call redis (removes local duplicates as destination addresses)
+func register_network_call_with_redis(protocolType layers.IPProtocol, dst_ip net.IP) {
+
+	for i := 0; i < len(local_ip_list); i++ {
+		if local_ip_list[i].Equal(dst_ip) {
+			fmt.Println("\n\t---Detected Local IP:", dst_ip)
+		} else {
+			if redisConnectionInitialized == true {
+
+				foo := client.Cmd("ZINCRBY", "popularity", "1", dst_ip)
+				if foo.Err != nil {
+					fmt.Println(foo.Err.Error())
+				}
+			} else { //just print to screen
+				fmt.Printf("\n\tDst: %s\t Type: %s", dst_ip, protocolType.LayerType().String())
+			}
+		}
+	}
+}
+
+//---------- fast packet decoder
+func process_gopacket_fast_decoder(packet gopacket.Packet) {
+	parser := gopacket.NewDecodingLayerParser(
+		layers.LayerTypeEthernet,
+		&ethLayer,
+		&ipLayer,
+		&tcpLayer,
+	)
+	foundLayerTypes := []gopacket.LayerType{}
+
+	err := parser.DecodeLayers(packet.Data(), &foundLayerTypes)
+	if err != nil {
+		fmt.Println("Trouble decoding layers: ", err)
+	}
+
+	for _, layerType := range foundLayerTypes {
+		if layerType == layers.LayerTypeIPv4 {
+			fmt.Println("IPv4: ", ipLayer.SrcIP, "->", ipLayer.DstIP)
+		}
+		if layerType == layers.LayerTypeTCP {
+			fmt.Println("TCP Port: ", tcpLayer.SrcPort, "->", tcpLayer.DstPort)
+			fmt.Println("TCP SYN:", tcpLayer.SYN, " | ACK:", tcpLayer.ACK)
+		}
+	}
+}
+code in progress */
+
+/** TEST CODE
+//---------- Test packets
+func Make_Simple_Test_Packet() []byte {
+	bytes := []byte{
+		0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, // magic, maj, min
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // tz, sigfigs
+		0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, // snaplen, linkType
+		0x5A, 0xCC, 0x1A, 0x54, 0x01, 0x00, 0x00, 0x00, // sec, usec
+		0x04, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, // cap len, full len
+		0x01, 0x02, 0x03, 0x04, // data
+	}
+	return bytes
+}
+
+*/
