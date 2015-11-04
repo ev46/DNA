@@ -18,7 +18,7 @@ var (
 	networkDeviceName string
 
 	//Redis specific
-	//client                     redis.Client
+	client                     *redis.Client
 	redisServerURL             string
 	redisProtocol              string
 	redisConnectionInitialized bool = false
@@ -45,8 +45,12 @@ func Scan(network_Device_Name string, redis_Server_URL string, redis_Protocol st
 
 	initialize_local_ip_list()
 
+	initialize_redis_connection()
+
 	Read_RAW_Socket_Data()
 
+	// defer close
+	defer client.Close()
 	fmt.Println("\ndone...")
 }
 
@@ -119,18 +123,34 @@ func process_gopacket(packet gopacket.Packet) {
 //Call redis from here (running redis on local host right now)
 func register_network_call_with_redis(protocolType layers.IPProtocol, dst_ip net.IP) {
 
-	client, err := redis.Dial(redisProtocol, redisServerURL)
-	if err != nil {
-		fmt.Println("| WARNING: Problem connecting to Redis Server: " + redisServerURL + "\t|")
-		fmt.Println("|      " + err.Error())
+	if redisConnectionInitialized == true {
+		foo := client.Cmd("ZINCRBY", "popularity", "1", dst_ip.String())
+		if foo.Err != nil {
+			fmt.Println(foo.Err.Error())
+		} else {
+			fmt.Printf("\tIPv4:%s\tDest: %s \n", protocolType, dst_ip)
+		}
 	}
-	defer client.Close()
+}
 
-	foo := client.Cmd("ZINCRBY", "popularity", "1", dst_ip.String())
-	if foo.Err != nil {
-		fmt.Println(foo.Err.Error())
+//------------- Connection Pool for redis
+func initialize_redis_connection() {
+	//connect to redis server
+	fmt.Println("|---------------------------------------------------------------|")
+	fmt.Println("|  [scanner]\tInitializing Redis Client Configuration\t\t|")
+
+	client, err = redis.Dial(redisProtocol, redisServerURL)
+
+	if err != nil {
+		fmt.Println("| WARNING: Problem connecting to Redis Server: " + redisServerURL + "\t\t|")
+		fmt.Println("|      " + err.Error() + "\t|")
+		fmt.Println("|  \tPACKET_LOGGING_MODE: PRINT_TO_SCREEN\t\t\t|")
+		fmt.Println("|---------------------------------------------------------------|")
 	} else {
-		fmt.Printf("\tIPv4:%s\tDest: %s \n", protocolType, dst_ip)
+		fmt.Println("|\t\tConnected to Redis Server: " + redisServerURL + "|" + redisProtocol + "\t|")
+		fmt.Println("|\t\tPACKET_LOGGING_MODE: SEND_TO_REDIS  \t\t|")
+		fmt.Println("|---------------------------------------------------------------|")
+		redisConnectionInitialized = true
 	}
 }
 
@@ -168,29 +188,6 @@ func initialize_local_ip_list() {
 }
 
 /** CODE IN PROGRESS
-
-//------------- Connection Pool for redis
-func Initialize_Redis_Client() {
-	//connect to redis server
-	fmt.Println("|---------------------------------------------------------------|")
-	fmt.Println("|  [scanner] Initializing Redis Client Configuration    --------|")
-	fmt.Println("|	  Connecting to Redis Server: " + redisServerURL + "|" + redisProtocol + "\t|")
-
-	client, err := redis.Dial(redisProtocol, redisServerURL)
-	if err != nil {
-		fmt.Println("| WARNING: Problem connecting to Redis Server: " + redisServerURL + "\t|")
-		fmt.Println("|      " + err.Error() + "\t|")
-		fmt.Println("|  \tPACKET_LOGGING_MODE: PRINT_TO_SCREEN\t\t\t|")
-		fmt.Println("|---------------------------------------------------------------|")
-	} else {
-		fmt.Println("|  \tPACKET_LOGGING_MODE: SEND_TO_REDIS  \t\t\t|")
-		fmt.Println("|---------------------------------------------------------------|")
-		redisConnectionInitialized = true
-
-		// defer close
-		defer client.Close()
-	}
-}
 
 //---------- Call redis (removes local duplicates as destination addresses)
 func register_network_call_with_redis(protocolType layers.IPProtocol, dst_ip net.IP) {

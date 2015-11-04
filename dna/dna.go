@@ -41,7 +41,6 @@ func read_config_file() Configuration {
 		fmt.Println("Error opening configuration file:", err)
 	}
 
-	//
 	//print_configuration(configuration)
 
 	return configuration
