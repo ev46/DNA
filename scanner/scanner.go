@@ -70,6 +70,14 @@ func Read_RAW_Socket_Data() {
 	}
 	defer handle.Close()
 
+	// Set filter
+	var filter string = "tcp and port 80"
+	err = handle.SetBPFFilter(filter)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Only capturing TCP port 80 packets.")
+
 	// Use the handle as a packet source to process all packets
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
