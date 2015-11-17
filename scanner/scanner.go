@@ -30,7 +30,7 @@ var (
 	timeout      time.Duration = 30 * time.Second
 	handle       *pcap.Handle
 
-	//Will be used by faster packet decoder (will reuse them)
+	//Will be used by faster packet decoder (these will be reused)
 	//ethLayer layers.Ethernet
 	//ipLayer  layers.IPv4
 	//tcpLayer layers.TCP
