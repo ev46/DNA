@@ -1,11 +1,15 @@
+cd ~
+
+sudo rm -rf tmp/
+
 mkdir tmp
 
 cd tmp
 
-wget​http://download.redis.io/redis­stable.tar.gz
+sudo wget http://download.redis.io/redis-stable.tar.gz
 
-tar xzf​r​edis­stable.tar.gz
+tar xzf redis-stable.tar.gz
 
-cd ~/tmp/redis­stable
+cd redis-stable/
 
 sudo make install
