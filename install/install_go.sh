@@ -19,5 +19,3 @@ export GOPATH=\$HOME/gocode
 export PATH=\$PATH:\$GOPATH/bin
 
 " >> ~/.profile
-
-source ~/.profile
