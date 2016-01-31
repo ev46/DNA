@@ -13,7 +13,6 @@ import (
 )
 
 var (
-	local_ip_list []net.IP
 	//local setting from config file
 	networkDeviceName string
 
@@ -43,8 +42,6 @@ func Scan(network_Device_Name string, redis_Server_URL string, redis_Protocol st
 	redisServerURL = redis_Server_URL
 	redisProtocol = redis_Protocol
 
-	initialize_local_ip_list()
-
 	initialize_redis_connection()
 
 	Read_RAW_Socket_Data()
@@ -71,7 +68,7 @@ func Read_RAW_Socket_Data() {
 	defer handle.Close()
 
 	// Set filter
-	var filter string = "tcp and port 80"
+	var filter string = "tcp"
 	err = handle.SetBPFFilter(filter)
 	if err != nil {
 		log.Fatal(err)
@@ -88,39 +85,13 @@ func Read_RAW_Socket_Data() {
 //------ PCAP Print PCAP Data -----
 func process_gopacket(packet gopacket.Packet) {
 
-	// ethernetLayer := packet.Layer(layers.LayerTypeEthernet)
-	// if ethernetLayer != nil {
-	// 	ethernetPacket, _ := ethernetLayer.(*layers.Ethernet)
-	// 	fmt.Printf("Ethernet layer | Type: %s | Src_MAC: %s Dst_MAC: %s\n", ethernetPacket.EthernetType, ethernetPacket.SrcMAC, ethernetPacket.DstMAC)
-	// 	// Ethernet type is typically IPv4 but could be ARP or other
-	// }
-
 	// Let's see if the packet is IP (even though the ether type told us)
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
 	if ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
 
-		// IP layer variables:
-		// Version (Either 4 or 6)
-		// IHL (IP Header Length in 32-bit words)
-		// TOS, Length, Id, Flags, FragOffset, TTL, Protocol (TCP?),
-		// Checksum, SrcIP, DstIP
-		// fmt.Println("\nLayer Info: " + ip.Protocol.LayerType().String() == "ICMPv4")
-
 		register_network_call_with_redis(ip.Protocol, ip.DstIP)
 	}
-
-	// // Let's see if the packet is TCP
-	// tcpLayer := packet.Layer(layers.LayerTypeTCP)
-	// if tcpLayer != nil {
-	// 	tcp, _ := tcpLayer.(*layers.TCP)
-	// 	fmt.Printf("\tTCP | From port %d to %d", tcp.SrcPort, tcp.DstPort)
-	// 	fmt.Println("| TCP Seq: ", tcp.Seq)
-
-	// 	// TCP layer variables:
-	// 	// SrcPort, DstPort, Seq, Ack, DataOffset, Window, Checksum, Urgent
-	// 	// Bool flags: FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS
-	// }
 
 	// Check for errors
 	if err := packet.ErrorLayer(); err != nil {
@@ -135,8 +106,6 @@ func register_network_call_with_redis(protocolType layers.IPProtocol, dst_ip net
 		foo := client.Cmd("ZINCRBY", "popularity", "1", dst_ip.String())
 		if foo.Err != nil {
 			fmt.Println(foo.Err.Error())
-		} else {
-			fmt.Printf("\tIPv4:%s\tDest: %s \n", protocolType, dst_ip)
 		}
 	}
 }
@@ -161,101 +130,3 @@ func initialize_redis_connection() {
 		redisConnectionInitialized = true
 	}
 }
-
-func initialize_local_ip_list() {
-	ifaces, err := net.Interfaces()
-
-	//handle err
-	if err == nil {
-		for _, i := range ifaces {
-			addrs, err := i.Addrs()
-
-			//handle err
-			if err == nil {
-				for _, addr := range addrs {
-
-					var ip net.IP
-					switch v := addr.(type) {
-					case *net.IPNet:
-						ip = v.IP
-					case *net.IPAddr:
-						ip = v.IP
-					}
-
-					if ip.IsGlobalUnicast() {
-						local_ip_list = append(local_ip_list, ip)
-					}
-				}
-			} else { //handle error
-				fmt.Println(err)
-			}
-		}
-	} else { //handle error
-		fmt.Println(err)
-	}
-}
-
-/** CODE IN PROGRESS
-
-//---------- Call redis (removes local duplicates as destination addresses)
-func register_network_call_with_redis(protocolType layers.IPProtocol, dst_ip net.IP) {
-
-	for i := 0; i < len(local_ip_list); i++ {
-		if local_ip_list[i].Equal(dst_ip) {
-			fmt.Println("\n\t---Detected Local IP:", dst_ip)
-		} else {
-			if redisConnectionInitialized == true {
-
-				foo := client.Cmd("ZINCRBY", "popularity", "1", dst_ip)
-				if foo.Err != nil {
-					fmt.Println(foo.Err.Error())
-				}
-			} else { //just print to screen
-				fmt.Printf("\n\tDst: %s\t Type: %s", dst_ip, protocolType.LayerType().String())
-			}
-		}
-	}
-}
-
-//---------- fast packet decoder
-func process_gopacket_fast_decoder(packet gopacket.Packet) {
-	parser := gopacket.NewDecodingLayerParser(
-		layers.LayerTypeEthernet,
-		&ethLayer,
-		&ipLayer,
-		&tcpLayer,
-	)
-	foundLayerTypes := []gopacket.LayerType{}
-
-	err := parser.DecodeLayers(packet.Data(), &foundLayerTypes)
-	if err != nil {
-		fmt.Println("Trouble decoding layers: ", err)
-	}
-
-	for _, layerType := range foundLayerTypes {
-		if layerType == layers.LayerTypeIPv4 {
-			fmt.Println("IPv4: ", ipLayer.SrcIP, "->", ipLayer.DstIP)
-		}
-		if layerType == layers.LayerTypeTCP {
-			fmt.Println("TCP Port: ", tcpLayer.SrcPort, "->", tcpLayer.DstPort)
-			fmt.Println("TCP SYN:", tcpLayer.SYN, " | ACK:", tcpLayer.ACK)
-		}
-	}
-}
-code in progress */
-
-/** TEST CODE
-//---------- Test packets
-func Make_Simple_Test_Packet() []byte {
-	bytes := []byte{
-		0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, // magic, maj, min
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // tz, sigfigs
-		0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, // snaplen, linkType
-		0x5A, 0xCC, 0x1A, 0x54, 0x01, 0x00, 0x00, 0x00, // sec, usec
-		0x04, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, // cap len, full len
-		0x01, 0x02, 0x03, 0x04, // data
-	}
-	return bytes
-}
-
-*/
